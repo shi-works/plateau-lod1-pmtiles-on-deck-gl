@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>3D都市モデルPLATEAU建物データ(PMTiles) on deck.gl</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://unpkg.com/deck.gl@latest/dist.min.js"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+      }
+
+      #map {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 100%;
+      }
+
+      #credits {
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        padding: 2px;
+        font-size: 12px;
+        color: #000000;
+        text-shadow: none;
+        background-color: rgba(255, 255, 255, 0.7);
+      }
+
+      #credits a {
+        color: #000000;
+        pointer-events: auto;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="map"></div>
+    <div id="credits"></div>
+    <script type="module">
+      // クレジット
+      const creditsElement = document.getElementById("credits");
+      creditsElement.innerHTML = `<a href="https://www.geospatial.jp/ckan/dataset/plateau" target="_blank">3D都市モデルPLATEAU(国土交通省)</a> | <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>`;
+
+      // ESモジュールのインポート（loaders.gl/pmtiles）
+      import { PMTilesSource } from "https://cdn.jsdelivr.net/npm/@loaders.gl/pmtiles@4.1.0-alpha.11/+esm";
+
+      // PMTilesソース
+      const tileSource = new PMTilesSource({
+        url: "https://xs489works.xsrv.jp/pmtiles-data/plateau/PLATEAU_2022_LOD1.pmtiles",
+      });
+
+      const deckgl = new deck.DeckGL({
+        container: "map",
+        initialViewState: {
+          latitude: 35.6813146,
+          longitude: 139.7649254,
+          zoom: 16,
+          bearing: 0,
+          pitch: 60,
+          maxPitch: 85,
+        },
+        controller: true,
+        layers: [
+          // 地理院タイル（空中写真）
+          new deck.TileLayer({
+            data: "https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg",
+            minZoom: 0,
+            maxZoom: 23,
+            tileSize: 256,
+            renderSubLayers: (props) =>
+              new deck.BitmapLayer(props, {
+                data: null,
+                image: props.data,
+                bounds: (({ west, south, east, north }) => [
+                  west,
+                  south,
+                  east,
+                  north,
+                ])(props.tile.bbox),
+              }),
+          }),
+          // 3D都市モデルPLATEAU建物データ(LOD1)(PMTiles)
+          // 【参考】https://gunmagisgeek.com/blog/deck-gl/8323
+          new deck.TileLayer({
+            id: "pmtileslayer",
+            getTileData: tileSource && tileSource.getTileData,
+            maxRequests: 20,
+            pickable: true,
+            autoHighlight: true,
+            minZoom: 16,
+            maxZoom: 16,
+            tileSize: 256,
+            renderSubLayers: (props) => {
+              // pmtilesのデータがベクター型なのでサブレイヤーはGeoJsonレイヤーを使って可視化する
+              return new deck.GeoJsonLayer({
+                id: `${props.id}-geojson`,
+                data: props.data,
+                pickable: true,
+                autoHighlight: true,
+                extruded: true,
+                getElevation: (d) => d.properties.measuredHeight,
+                wireframe: true,
+                getFillColor: [255, 255, 255, 128],
+                lineWidthScale: 1,
+                lineWidthMinPixels: 0.5,
+              });
+            },
+          }),
+        ],
+      });
+    </script>
+  </body>
+</html>
